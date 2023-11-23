@@ -1,0 +1,505 @@
+-- PROCEDURE: public.select_review_of_user(text, integer, integer, text, text, text)
+
+-- drop function select_review_of_user
+
+CREATE OR REPLACE FUNCTION public.select_review_of_user(
+	_username text,
+	_month integer,
+	_year integer,
+	_status text,
+	_reviewtypename text,
+	_teamname text)
+	RETURNS TABLE(
+		score numeric, 
+		good_quality text, 
+		bad_quality text,
+		review_month integer) AS $$
+		BEGIN
+			IF _month > 0 AND _year > 0 
+			THEN
+			RETURN QUERY SELECT round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2),
+				STRING_AGG(r.good_quality, ', '), STRING_AGG(r.bad_quality, ', '),
+                r.month
+                FROM REVIEWS r
+                INNER JOIN USERS u ON
+                r.review_for = u.id
+                WHERE r.review_for = (SELECT id FROM USERS WHERE username = _username limit 1) and
+				r.month = _month and 
+				r.year = _year and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+                review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                team_id = (SELECT id FROM TEAMS WHERE name = _teamName limit 1)
+                GROUP BY r.month;
+			ELSIF _year > 0
+			THEN
+			RETURN QUERY SELECT round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2),
+                STRING_AGG(r.good_quality, ', '), STRING_AGG(r.bad_quality, ', '),
+                r.month 
+                FROM REVIEWS r
+                INNER JOIN USERS u ON r.review_for = u.id
+                WHERE r.review_for = (SELECT id FROM USERS WHERE username = _username limit 1) and
+                year = _year and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+                review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                team_id = (SELECT id FROM TEAMS WHERE name = _teamName limit 1)
+                GROUP BY r.month;			
+			ELSIF _month > 0
+			THEN
+			RETURN QUERY SELECT round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2),
+                STRING_AGG(r.good_quality, ', '), STRING_AGG(r.bad_quality, ', '),
+                r.month 
+                FROM REVIEWS r
+                INNER JOIN USERS u ON r.review_for = u.id
+                WHERE r.review_for = (SELECT id FROM USERS WHERE username = _username limit 1) and
+                month = _month and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+                review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                team_id = (SELECT id FROM TEAMS WHERE name = _teamName limit 1)
+                GROUP BY r.month;
+			ELSE
+			RETURN QUERY SELECT round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2),
+                STRING_AGG(r.good_quality, ', '), STRING_AGG(r.bad_quality, ', '),
+                r.month  
+                FROM REVIEWS r
+                INNER JOIN USERS u ON
+                r.review_for = u.id
+                WHERE r.review_for = (SELECT id FROM USERS WHERE username = _username limit 1) and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+                review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                team_id = (SELECT id FROM TEAMS WHERE name = _teamName limit 1)
+                GROUP BY r.month;
+  			END IF;
+	END;
+$$ LANGUAGE plpgsql;
+
+------------------------------
+-- DROP FUNCTION select_scores_of_team
+
+CREATE OR REPLACE FUNCTION public.select_scores_of_team(
+	_reviewtypename text,
+	_teamname text,
+	_status text,
+	_year integer,
+	_month integer)
+	RETURNS TABLE(
+		user_name Users.name%Type,
+		team_name Teams.name%Type,
+		review_year integer,
+		review_month integer,
+		avg_score numeric,
+		review_good_quality text,
+		review_bad_quality text) 
+		AS $$
+	BEGIN
+		 IF _teamName IS NOT NULL AND _year > 0 AND _month > 0 
+		 THEN
+		 	RETURN QUERY SELECT u.name, t.name, 
+				COALESCE(r.year, _year), 
+				COALESCE(r.month,_month),
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0),
+                COALESCE(STRING_AGG(r.good_quality, ', '), ''), 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') 
+		 		FROM REVIEWS r
+		 		INNER JOIN USERS u ON u.id = r.review_for
+		 		INNER JOIN TEAMS t ON t.id = u.team_id
+		 		WHERE t.name = _teamName and 
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+				(
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+		 		r. month = _month and 
+				r.year = _year
+		 		GROUP BY t.name, u.name, r.year, r.month;
+				
+		ELSIF _teamName IS NOT NULL AND _year > 0 
+		THEN
+		 	RETURN QUERY SELECT u.name, t.name, 
+				COALESCE(r.year, _year), 
+				r.month,
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0),
+                COALESCE(STRING_AGG(r.good_quality, ', '), ''), 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') 
+				FROM REVIEWS r
+        		INNER JOIN USERS u ON u.id = r.review_for
+				INNER JOIN TEAMS t on t.id = u.team_id
+				WHERE t.name = _teamName and 
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+				(
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+				r.year = _year
+				GROUP BY t.name, u.name, r.year, r.month;
+		ELSIF _teamName IS NOT NULL AND _month > 0 
+		THEN
+			RETURN QUERY SELECT u.name, t.name, 
+				r.year, 
+				COALESCE(r.month, _month),
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0),
+                COALESCE(STRING_AGG(r.good_quality, ', '), ''), 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') 
+				FROM REVIEWS r
+                INNER JOIN USERS u ON u.id = r.review_for
+                INNER JOIN TEAMS t on t.id = u.team_id
+                WHERE t.name = _teamName and 
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+                r.month = _month
+                GROUP BY t.name, u.name, r.year, r.month;
+		ELSIF _teamName IS NOT NULL 
+		THEN
+			RETURN QUERY SELECT u.name, t.name, 
+				r.year, 
+				r.month,
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0),
+                COALESCE(STRING_AGG(r.good_quality, ', '), ''), 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') 
+				FROM REVIEWS r
+                INNER JOIN USERS u ON u.id = r.review_for
+                INNER JOIN TEAMS t on t.id = u.team_id
+                WHERE t.name = _teamName and 
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				)
+                GROUP BY t.name, u.name, r.year, r.month;
+  		END IF;
+	END;
+$$ LANGUAGE plpgsql;
+
+----------------------------------------
+-- drop function select_scores_of_all_teams
+
+CREATE OR REPLACE FUNCTION select_scores_of_all_teams(
+	_status REVIEW_STATUS.name%Type,
+	_reviewtypename REVIEW_TYPE.name%Type,
+	_year integer,
+	_month integer)
+	RETURNS TABLE(
+		team_name Teams.name%Type, 
+		review_year integer, 
+		review_month integer, 
+		avg_score numeric)
+		LANGUAGE 'plpgsql'
+		COST 100
+		VOLATILE PARALLEL UNSAFE
+		ROWS 1000
+		AS $BODY$
+		BEGIN
+		IF _month > 0 AND _year > 0 
+		THEN
+		RETURN QUERY SELECT t.name, 
+			r.year, 
+			r.month, 
+			round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+			FROM REVIEWS r
+			INNER JOIN USERS u ON r.review_for = u.id
+			INNER JOIN TEAMS t on t.id = u.team_id
+			WHERE 
+			r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+			(
+				CASE WHEN _reviewTypeName != '' THEN 
+				r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+				ELSE
+				r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+				END
+			) and
+			r.month = _month and 
+			r.year = _year
+			GROUP BY t.name, r.year, r.month;
+		ELSIF _year > 0 
+		THEN
+			RETURN QUERY SELECT t.name, 
+				r.year,
+				r.month,
+				round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+                FROM REVIEWS r
+                INNER JOIN USERS u ON r.review_for = u.id
+                INNER JOIN TEAMS t on t.id = u.team_id
+                WHERE 
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+				(
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+					END
+				) and
+				r.year = _year
+                GROUP BY t.name, r.year, r.month;
+		ELSIF _month > 0 THEN
+		RETURN QUERY SELECT t.name, 
+			r.year, 
+			r.month,
+			round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+			FROM REVIEWS r
+			INNER JOIN USERS u ON r.review_for = u.id
+			INNER JOIN TEAMS t on t.id = u.team_id
+			WHERE 
+			r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+			(
+				CASE WHEN _reviewTypeName != '' THEN 
+				r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+				ELSE
+				r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+				END
+			) and
+			r.month = _month
+			GROUP BY t.name, r.year, r.month;
+		ELSE 
+		RETURN QUERY SELECT t.name, 
+			r.year,
+			r.month,
+			round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+            FROM REVIEWS r
+            INNER JOIN USERS u ON r.review_for = u.id
+			INNER JOIN TEAMS t on t.id = u.team_id
+			WHERE 
+			r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+			(
+				CASE WHEN _reviewTypeName != '' THEN 
+				r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+				ELSE
+				r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+				END
+			)
+			GROUP BY t.name, r.year, r.month;
+		END IF;
+	END;
+$BODY$;
+
+------------------------------------------------
+-- DROP FUNCTION select_scores_of_all_users
+
+CREATE OR REPLACE FUNCTION public.select_scores_of_all_users(
+	_reviewtypename text,
+	_status text,
+	_year integer,
+	_month integer)
+	RETURNS TABLE(
+		user_name Users.name%Type,
+		team_name Teams.name%Type,
+		review_year integer,
+		review_month integer,
+		avg_score numeric,
+		review_good_quality text,
+		review_bad_quality text) 
+		AS $$
+	BEGIN
+		 IF _year > 0 AND _month > 0 
+		 THEN
+		 	RETURN QUERY SELECT u.name, t.name, 
+				COALESCE(r.year, _year), 
+				COALESCE(r.month,_month),
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0) as score,
+                COALESCE(STRING_AGG(r.good_quality, ', '), '') as good_quality, 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') as bad_quality 
+		 		FROM REVIEWS r
+		 		INNER JOIN USERS u ON u.id = r.review_for
+		 		INNER JOIN TEAMS t ON t.id = u.team_id
+		 		WHERE
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+				(
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+		 		r. month = _month and 
+				r.year = _year
+		 		GROUP BY t.name, u.name, r.year, r.month
+				ORDER BY score desc;
+		ELSIF _year > 0 
+		THEN
+		 	RETURN QUERY SELECT u.name, t.name, 
+				COALESCE(r.year, _year), 
+				r.month,
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0) as score,
+                COALESCE(STRING_AGG(r.good_quality, ', '), '') as good_quality, 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') as bad_quality 
+				FROM REVIEWS r
+        		INNER JOIN USERS u ON u.id = r.review_for
+				INNER JOIN TEAMS t on t.id = u.team_id
+				WHERE
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+				(
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				) and
+				r.year = _year
+				GROUP BY t.name, u.name, r.year, r.month
+				ORDER BY score desc;
+		ELSE 
+			RETURN QUERY SELECT u.name, t.name, 
+				r.year, 
+				r.month,
+				COALESCE(round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2), 0) as score,
+                COALESCE(STRING_AGG(r.good_quality, ', '), '') as good_quality, 
+				COALESCE(STRING_AGG(r.bad_quality, ', '), '') as bad_quality 
+				FROM REVIEWS r
+                INNER JOIN USERS u ON u.id = r.review_for
+                INNER JOIN TEAMS t on t.id = u.team_id
+                WHERE
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+                (
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+  					END
+				)
+                GROUP BY t.name, u.name, r.year, r.month
+				ORDER BY score desc;
+  		END IF;
+	END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------
+-- drop function select_scores_of_all_departments
+
+CREATE OR REPLACE FUNCTION select_scores_of_all_departments(
+	_status REVIEW_STATUS.name%Type,
+	_reviewtypename REVIEW_TYPE.name%Type,
+	_year integer,
+	_month integer)
+	RETURNS TABLE(
+		department_name Departments.name%Type, 
+		review_year integer, 
+		review_month integer, 
+		avg_score numeric)
+		LANGUAGE 'plpgsql'
+		COST 100
+		VOLATILE PARALLEL UNSAFE
+		ROWS 1000
+		AS $BODY$
+		BEGIN
+		IF _month > 0 AND _year > 0 
+		THEN
+		RETURN QUERY SELECT d.name, 
+			r.year, 
+			r.month, 
+			round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+			FROM REVIEWS r
+			INNER JOIN USERS u ON r.review_for = u.id
+			INNER JOIN TEAMS t on t.id = u.team_id
+			INNER JOIN DEPARTMENTS d on d.id = t.department_id
+			WHERE 
+			r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+			(
+				CASE WHEN _reviewTypeName != '' THEN 
+				r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+				ELSE
+				r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+				END
+			) and
+			r.month = _month and 
+			r.year = _year
+			GROUP BY d.name, r.year, r.month;
+		ELSIF _year > 0 
+		THEN
+			RETURN QUERY SELECT d.name, 
+				r.year,
+				r.month,
+				round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+                FROM REVIEWS r
+                INNER JOIN USERS u ON r.review_for = u.id
+                INNER JOIN TEAMS t on t.id = u.team_id
+				INNER JOIN DEPARTMENTS d on d.id = t.department_id
+                WHERE 
+				r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+				(
+					CASE WHEN _reviewTypeName != '' THEN 
+					r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+					ELSE
+					r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+					END
+				) and
+				r.year = _year
+                GROUP BY d.name, r.year, r.month;
+		ELSIF _month > 0 THEN
+		RETURN QUERY SELECT d.name, 
+			r.year, 
+			r.month,
+			round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+			FROM REVIEWS r
+			INNER JOIN USERS u ON r.review_for = u.id
+			INNER JOIN TEAMS t on t.id = u.team_id
+			INNER JOIN DEPARTMENTS d on d.id = t.department_id
+			WHERE 
+			r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+			(
+				CASE WHEN _reviewTypeName != '' THEN 
+				r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+				ELSE
+				r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+				END
+			) and
+			r.month = _month
+			GROUP BY d.name, r.year, r.month;
+		ELSE 
+		RETURN QUERY SELECT d.name, 
+			r.year,
+			r.month,
+			round(((100.0 * sum(r.score)) / (count(r.id) * 5)):: decimal, 2)
+            FROM REVIEWS r
+            INNER JOIN USERS u ON r.review_for = u.id
+			INNER JOIN TEAMS t on t.id = u.team_id
+			INNER JOIN DEPARTMENTS d on d.id = t.department_id
+			WHERE 
+			r.review_status_id = (SELECT id FROM REVIEW_STATUS where name = _status) and
+			(
+				CASE WHEN _reviewTypeName != '' THEN 
+				r.review_type_id = (SELECT id FROM REVIEW_TYPE where name = _reviewTypeName) 
+				ELSE
+				r.review_type_id in (SELECT id FROM REVIEW_TYPE) 
+				END
+			)
+			GROUP BY d.name, r.year, r.month;
+		END IF;
+	END;
+$BODY$;
