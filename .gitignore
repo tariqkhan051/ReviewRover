@@ -35,3 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+#spring boot build
+build
+.gradle/buildOutputCleanup
