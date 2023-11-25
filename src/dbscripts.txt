@@ -1,3 +1,7 @@
+-- insert into roles (name) values ('ROLE_ADMIN')
+-- insert into roles (name) values ('ROLE_MODERATOR')
+-- insert into roles (name) values ('ROLE_USER')
+
 -- PROCEDURE: public.select_review_of_user(text, integer, integer, text, text, text)
 
 -- drop function select_review_of_user
