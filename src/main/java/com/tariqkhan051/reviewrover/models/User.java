@@ -197,7 +197,7 @@ public class User {
     }
 
     public Boolean getIsLive() {
-        return isLive;
+        return isLive == null ? false : isLive;
     }
 
     public void setIsLive(Boolean isLive) {

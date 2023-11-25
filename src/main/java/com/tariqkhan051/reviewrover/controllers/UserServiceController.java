@@ -17,10 +17,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.tariqkhan051.reviewrover.DbHandler;
 import com.tariqkhan051.reviewrover.helpers.Utils;
 import com.tariqkhan051.reviewrover.helpers.Messages.ResponseMessages;
-import com.tariqkhan051.reviewrover.helpers.Validator.UserValidator;
 import com.tariqkhan051.reviewrover.models.ERole;
 import com.tariqkhan051.reviewrover.models.Team;
 import com.tariqkhan051.reviewrover.models.User;
