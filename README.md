@@ -14,8 +14,6 @@ Application to submit reviews of colleagues within an organization.
 
    ```bash
    ./gradlew bootRun
-   
 
 3. **Access the API**
-   Open your browser or API client at:
-    http://localhost:8080/
+   Open your browser or API client at: http://localhost:8080/
